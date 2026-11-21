@@ -1,12 +1,13 @@
 name: aylin_bakery
 description: قنادی آیلین
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0+2
 environment:
   sdk: '>=3.3.0 <4.0.0'
 dependencies:
   flutter:
     sdk: flutter
   shared_preferences: ^2.2.3
+  audioplayers: ^6.5.1
 flutter:
   uses-material-design: true
