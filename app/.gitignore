@@ -1,0 +1,11 @@
+*.jks
+key.properties
+android/
+build/
+.dart_tool/
+.flutter-plugins*
+.packages
+pubspec.lock
+.metadata
+ios/
+web/

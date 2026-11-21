@@ -1,0 +1,79 @@
+name: Build Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Check signing secrets
+        env:
+          A: ${{ secrets.KEYSTORE_BASE64 }}
+          B: ${{ secrets.KEYSTORE_PASSWORD }}
+          C: ${{ secrets.KEY_ALIAS }}
+          D: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$A" ] || [ -z "$B" ] || [ -z "$C" ] || [ -z "$D" ]; then
+            echo "Signing secrets are missing. Add KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Create Android scaffold
+        run: |
+          flutter create --platforms=android --org com.aylin --project-name aylin_bakery .
+          rm -f test/widget_test.dart
+          sed -i 's/android:label="[^"]*"/android:label="قنادی آیلین"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Configure release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n' "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+          cat tools/signing.gradle.kts >> android/app/build.gradle.kts
+
+      - run: flutter pub get
+
+      - name: Build signed APK
+        run: flutter build apk --release --build-number=${{ github.run_number }}
+
+      - name: Build signed AAB (for Google Play / Bazaar)
+        run: flutter build appbundle --release --build-number=${{ github.run_number }}
+
+      - name: Rename outputs
+        run: |
+          mkdir out
+          cp build/app/outputs/flutter-apk/app-release.apk out/aylin-bakery.apk
+          cp build/app/outputs/bundle/release/app-release.aab out/aylin-bakery.aab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aylin-bakery-release
+          path: out/*
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
