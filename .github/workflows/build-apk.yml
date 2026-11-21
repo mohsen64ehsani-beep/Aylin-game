@@ -51,6 +51,15 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
         run: flutter pub get
 
+      - name: Fix cake label field mismatch
+        working-directory: ${{ env.APP_DIR }}
+        shell: bash
+        run: |
+          set -e
+          # LevelDef stores the cake name in title; there is no cake field.
+          sed -i 's/lv\\.cake/lv.title/g' lib/play.dart
+          ! grep -n 'lv\\.cake' lib/play.dart
+
       - name: Inspect LevelDef source
         working-directory: ${{ env.APP_DIR }}
         shell: bash
