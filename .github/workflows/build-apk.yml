@@ -30,7 +30,6 @@ jobs:
           fi
           echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
           echo "Flutter project: $APP_DIR"
-          find "$APP_DIR" -maxdepth 3 -type f | sort | head -200
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -51,6 +50,17 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: ${{ env.APP_DIR }}
         run: flutter pub get
+
+      - name: Inspect LevelDef source
+        working-directory: ${{ env.APP_DIR }}
+        shell: bash
+        run: |
+          echo "===== LevelDef declaration ====="
+          grep -n -A35 -B5 "class LevelDef" lib/data.dart || true
+          echo "===== LevelDef usages in play.dart ====="
+          grep -n -E "lv\.|LevelDef" lib/play.dart | head -100 || true
+          echo "===== Relevant play.dart section ====="
+          sed -n '340,370p' lib/play.dart
 
       - name: Build debug APK
         working-directory: ${{ env.APP_DIR }}
