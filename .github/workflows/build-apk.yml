@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -30,6 +30,16 @@ jobs:
           fi
           echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
           echo "Flutter project: $APP_DIR"
+          mkdir -p app
+          cp -R "$APP_DIR/." app/
+          rm -rf app/.dart_tool app/build app/android app/ios app/linux app/macos app/windows app/web
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app
+          if ! git diff --cached --quiet; then
+            git commit -m "Import Flutter game source for next version"
+            git push
+          fi
           echo "===== Project files ====="
           find "$APP_DIR" -maxdepth 3 -type f | sort | head -160
           echo "===== Dart source inventory ====="
