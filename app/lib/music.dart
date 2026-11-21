@@ -8,7 +8,6 @@ class BakeryMusic {
   static final BakeryMusic instance = BakeryMusic._();
   final AudioPlayer _player = AudioPlayer();
   bool enabled = true;
-  bool _ready = false;
 
   Future<void> start() async {
     if (!enabled) return;
@@ -16,7 +15,6 @@ class BakeryMusic {
       await _player.setReleaseMode(ReleaseMode.loop);
       await _player.setVolume(0.24);
       await _player.play(BytesSource(_makeTheme()));
-      _ready = true;
     } catch (_) {
       // Gameplay remains available if an audio device/plugin is unavailable.
     }
