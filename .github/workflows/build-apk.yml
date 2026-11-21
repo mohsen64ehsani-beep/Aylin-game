@@ -1,4 +1,4 @@
-name: Build Aylin APK
+name: Build Aylin Release APK
 
 on:
   push:
@@ -30,6 +30,10 @@ jobs:
           fi
           echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
           echo "Flutter project: $APP_DIR"
+          echo "===== Project files ====="
+          find "$APP_DIR" -maxdepth 3 -type f | sort | head -160
+          echo "===== Dart source inventory ====="
+          find "$APP_DIR/lib" -type f -name '*.dart' -print | sort
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -56,38 +60,43 @@ jobs:
         shell: bash
         run: |
           set -e
-          # LevelDef stores the cake name in title; there is no cake field.
           sed -i 's/lv.cake/lv.title/g' lib/play.dart
           ! grep -n 'lv\\.cake' lib/play.dart
 
-      - name: Inspect LevelDef source
+      - name: Print game source for review
         working-directory: ${{ env.APP_DIR }}
         shell: bash
         run: |
-          echo "===== LevelDef declaration ====="
-          grep -n -A35 -B5 "class LevelDef" lib/data.dart || true
-          echo "===== LevelDef usages in play.dart ====="
-          grep -n -E "lv\.|LevelDef" lib/play.dart | head -100 || true
-          echo "===== Relevant play.dart section ====="
-          sed -n '340,370p' lib/play.dart
+          set -e
+          for f in lib/main.dart lib/home.dart lib/play.dart lib/data.dart; do
+            if [ -f "$f" ]; then
+              echo "===== SOURCE: $f ====="
+              sed -n '1,420p' "$f"
+            fi
+          done
+          echo "===== APP CONFIG ====="
+          cat pubspec.yaml
+          echo "===== ANDROID PACKAGE / SIGNING CONFIG ====="
+          grep -R -n -E 'applicationId|namespace|signingConfig|versionCode|versionName' android/app 2>/dev/null || true
 
-      - name: Build debug APK
+      - name: Build release APK
         working-directory: ${{ env.APP_DIR }}
-        run: flutter build apk --debug
+        run: flutter build apk --release
 
-      - name: Collect APK
+      - name: Collect release APK
         shell: bash
         run: |
           set -e
           mkdir -p output
-          find "$APP_DIR/build/app/outputs/flutter-apk" -maxdepth 1 -type f -name "*.apk" -exec cp {} output/ \;
-          test -n "$(find output -type f -name '*.apk' -print -quit)"
+          cp "$APP_DIR/build/app/outputs/flutter-apk/app-release.apk" output/aylin-game-release.apk
+          test -s output/aylin-game-release.apk
           ls -lh output
+          sha256sum output/aylin-game-release.apk
 
-      - name: Upload APK artifact
+      - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: aylin-game-debug-apk
-          path: output/*.apk
+          name: aylin-game-release-apk
+          path: output/aylin-game-release.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
