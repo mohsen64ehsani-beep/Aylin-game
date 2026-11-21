@@ -1,0 +1,66 @@
+name: Build Aylin APK
+
+on:
+  push:
+    paths:
+      - "aylin_bakery.zip"
+      - ".github/workflows/build-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Inspect and extract project archive
+        shell: bash
+        run: |
+          set -e
+          mkdir -p project
+          unzip -q aylin_bakery.zip -d project
+          echo "=== Archive contents ==="
+          find project -maxdepth 4 -type f | sort | head -300
+          echo "=== Build files ==="
+          find project -type f \( -name gradlew -o -name settings.gradle -o -name settings.gradle.kts -o -name build.gradle -o -name build.gradle.kts -o -name pubspec.yaml -o -name AndroidManifest.xml \) | sort
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build Android project with Gradle
+        shell: bash
+        run: |
+          set -e
+          WRAPPER="$(find project -type f -name gradlew -print -quit)"
+          if [ -n "$WRAPPER" ]; then
+            chmod +x "$WRAPPER"
+            cd "$(dirname "$WRAPPER")"
+            ./gradlew --no-daemon assembleDebug
+          else
+            echo "No Gradle wrapper found. This archive may not contain a native Android/Gradle project."
+            exit 2
+          fi
+
+      - name: Collect APK
+        if: success()
+        shell: bash
+        run: |
+          mkdir -p output
+          find project -type f -name "*.apk" -exec cp {} output/ \;
+          test -n "$(find output -type f -name '*.apk' -print -quit)"
+
+      - name: Upload APK artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aylin-game-debug-apk
+          path: output/*.apk
+          if-no-files-found: error
+          retention-days: 7
