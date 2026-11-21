@@ -17,16 +17,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Inspect and extract project archive
+      - name: Extract Flutter project
         shell: bash
         run: |
           set -e
           mkdir -p project
           unzip -q aylin_bakery.zip -d project
-          echo "=== Archive contents ==="
-          find project -maxdepth 4 -type f | sort | head -300
-          echo "=== Build files ==="
-          find project -type f \( -name gradlew -o -name settings.gradle -o -name settings.gradle.kts -o -name build.gradle -o -name build.gradle.kts -o -name pubspec.yaml -o -name AndroidManifest.xml \) | sort
+          APP_DIR="$(dirname "$(find project -type f -name pubspec.yaml -print -quit)")"
+          if [ -z "$APP_DIR" ] || [ "$APP_DIR" = "." ]; then
+            echo "pubspec.yaml not found in archive"
+            exit 2
+          fi
+          echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
+          echo "Flutter project: $APP_DIR"
+          find "$APP_DIR" -maxdepth 3 -type f | sort | head -200
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -34,30 +38,30 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Build Android project with Gradle
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: flutter pub get
+
+      - name: Build debug APK
+        working-directory: ${{ env.APP_DIR }}
+        run: flutter build apk --debug
+
+      - name: Collect APK
         shell: bash
         run: |
           set -e
-          WRAPPER="$(find project -type f -name gradlew -print -quit)"
-          if [ -n "$WRAPPER" ]; then
-            chmod +x "$WRAPPER"
-            cd "$(dirname "$WRAPPER")"
-            ./gradlew --no-daemon assembleDebug
-          else
-            echo "No Gradle wrapper found. This archive may not contain a native Android/Gradle project."
-            exit 2
-          fi
-
-      - name: Collect APK
-        if: success()
-        shell: bash
-        run: |
           mkdir -p output
-          find project -type f -name "*.apk" -exec cp {} output/ \;
+          find "$APP_DIR/build/app/outputs/flutter-apk" -maxdepth 1 -type f -name "*.apk" -exec cp {} output/ \;
           test -n "$(find output -type f -name '*.apk' -print -quit)"
+          ls -lh output
 
       - name: Upload APK artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: aylin-game-debug-apk
